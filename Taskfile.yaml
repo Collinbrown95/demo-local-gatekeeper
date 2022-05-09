@@ -74,12 +74,48 @@ tasks:
   # | |/ / _ \| '_ \/ __| __| '__/ _` | | '_ \| __|
   # |   < (_) | | | \__ \ |_| | | (_| | | | | | |_ 
   # |_|\_\___/|_| |_|___/\__|_|  \__,_|_|_| |_|\__|
-  konstraint:
-    prefix: konstraint 
-    desc: auto-generate constrainttemplates/constraints
+  opa:policies:
+    prefix: konstraint policies
+    desc: auto-generate constrainttemplates and documentation
     cmds:
       - |
           for dir in policies/*; do
             konstraint create $dir --skip-constraints
             konstraint doc $dir --output $dir/policies.md
           done
+  opa:constraints:
+    prefix: konstraint constraints
+    desc: auto-generate constraints
+    cmds:
+      - |
+          for dir in policies/*; do
+            mkdir -p constraints/$dir
+            konstraint create $dir --output constraints/$(echo $dir | sed 's%policies/%%')
+            # Keep only the auto-generated constraints, not the templates
+            rm constraints/$(echo $dir | sed 's%policies/%%')/template_*
+          done
+
+  #   ___  _ __   __ _ 
+  #  / _ \| '_ \ / _` |
+  # | (_) | |_) | (_| |
+  #  \___/| .__/ \__,_|
+  #       |_|          
+  opa:test:
+    prefix: opa test
+    desc: run opa unit tests
+    cmds:
+      - opa test -v policies
+  
+  opa:apply:policies:
+    prefix: apply policies
+    desc: apply all policies in the policies folder
+    cmds:
+      - |
+          kubectl apply $(ls policies/*/*.yaml | awk ' { print " -f " $1 } ')
+  
+  opa:apply:constraints:
+    prefix: apply constraints
+    desc: apply all constraints in the constraints folder
+    cmds:
+      - |
+          kubectl apply $(ls constraints/*/*.yaml | awk ' { print " -f " $1 } ')
