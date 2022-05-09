@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "user-pod"
+  namespace: default
+  labels:
+    app: "user-pod"
+spec:
+  containers:
+  - name: user-pod
+    image: "nginx:latest"
+    resources:
+      limits:
+        cpu: 50m
+        memory: 50Mi
+      requests:
+        cpu: 50m
+        memory: 50Mi
+  tolerations:
+    - effect: NoSchedule
+      key: classification
+      operator: Equal
+      value: sensitive
+    - effect: NoSchedule
+      key: purpose
+      operator: Equal
+      value: system
+    - effect: NoSchedule
+      key: use
+      operator: Equal
+      value: general
