@@ -1,0 +1,85 @@
+version: "3"
+dotenv: [".env"]
+output: prefixed
+silent: true
+
+vars:
+  CLUSTER_NAME: multinode
+  CONTEXT_NAME: "k3d-{{.CLUSTER_NAME}}"
+  AGENT_NODE_NAME: k3d-{{.CLUSTER_NAME}}-agent
+  K8S_VERSION: v1.21.0-k3s1  # Pin down k8s version for local cluster
+  K3S_IMAGE: rancher/{{.K8S_VERSION}}
+
+tasks:
+  #  _    _____     _
+  # | | _|___ /  __| |
+  # | |/ / |_ \ / _` |
+  # |   < ___) | (_| |
+  # |_|\_\____/ \__,_|
+
+  k3d:cluster:create:
+    prefix: ⚙️ > create
+    desc: create k3d cluster
+    cmds:
+      - k3d cluster create {{.CLUSTER_NAME}} --agents 3 --servers 1 # --image {{.K3S_IMAGE}}
+      # Label nodes with purpose/classification labels
+      - kubectl label nodes {{.AGENT_NODE_NAME}}-0 classification=nonsensitive purpose=user use=general
+      - kubectl label nodes {{.AGENT_NODE_NAME}}-1 classification=sensitive purpose=user use=general
+      - kubectl label nodes {{.AGENT_NODE_NAME}}-2 classification=sensitive purpose=system use=general
+      # Add taints to the nodes
+      - kubectl taint nodes {{.AGENT_NODE_NAME}}-0 classification=nonsensitive:NoSchedule purpose=user:NoSchedule use=general:NoSchedule 
+      - kubectl taint nodes {{.AGENT_NODE_NAME}}-1 classification=sensitive:NoSchedule purpose=user:NoSchedule use=general:NoSchedule
+      - kubectl taint nodes {{.AGENT_NODE_NAME}}-2 classification=sensitive:NoSchedule purpose=system:NoSchedule use=general:NoSchedule
+      # Create namespaces
+      - kubectl create ns user
+      - kubectl create ns system
+
+  k3d:cluster:destroy:
+    prefix: ⚙️ > destroy
+    desc: destroy k3d cluster
+    cmds:
+      - "k3d cluster delete {{.CLUSTER_NAME}}"
+
+  k3d:start:
+    prefix: ⚙️ > start
+    desc: starts k3d cluster
+    cmds:
+      - "k3d cluster start {{.CLUSTER_NAME}}"
+
+  k3d:stop:
+    prefix: ⚙️ > stop
+    desc: stops k3d cluster
+    cmds:
+      - "k3d cluster stop {{.CLUSTER_NAME}}"
+
+  #  _    ___
+  # | | _( _ ) ___
+  # | |/ / _ \/ __|
+  # |   < (_) \__ \
+  # |_|\_\___/|___/
+  k8s:gatekeeper-install:
+    prefix: gatekeeper install
+    desc: install gatekeeper onto the cluster
+    cmds:
+      - kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper/release-3.8/deploy/gatekeeper.yaml
+
+  k8s:gatekeeper-uninstall:
+    prefix: gatekeeper uninstall
+    desc: uninstall gatekeeper from the cluster
+    cmds:
+      - kubectl delete -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper/release-3.8/deploy/gatekeeper.yaml
+
+  #  _                   _             _       _   
+  # | | _____  _ __  ___| |_ _ __ __ _(_)_ __ | |_ 
+  # | |/ / _ \| '_ \/ __| __| '__/ _` | | '_ \| __|
+  # |   < (_) | | | \__ \ |_| | | (_| | | | | | |_ 
+  # |_|\_\___/|_| |_|___/\__|_|  \__,_|_|_| |_|\__|
+  konstraint:
+    prefix: konstraint 
+    desc: auto-generate constrainttemplates/constraints
+    cmds:
+      - |
+          for dir in policies/*; do
+            konstraint create $dir --skip-constraints
+            konstraint doc $dir --output $dir/policies.md
+          done
